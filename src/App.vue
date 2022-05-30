@@ -28,14 +28,14 @@
 
     <div>
       <h3>Playground</h3>
-      Next in {{ timerCount }} sec
+      Next in {{ timerCount.toFixed(1) }} sec
       <div style="width: 400px; height: 400px; border: 1px solid red; margin: 0 auto;">
         <template v-for="row in 20">
           <template v-for="column in 20">
             <div @click="setField(row, column)"
               class="pixel-box"
-              :style="{backgroundColor: colorMap[`${row}.${column}`]?.color}"
-              :title="`${ row }:${ column } ${ colorMap[`${row}.${column}`]?.userId ?? '' }`">
+              :style="{backgroundColor: colorMap.get(`${row}.${column}`)?.color}"
+              :title="`${ row }:${ column } ${ colorMap.get(`${row}.${column}`)?.userId ?? '' }`">
               
             </div>
           </template>
@@ -54,92 +54,88 @@
 </template>
 
 
-<script  lang="ts">
-import { defineComponent} from 'vue'
-import { io } from "socket.io-client";
-
-let socket;
+<script setup lang="ts">
+import { io, Socket } from "socket.io-client";
+import { onMounted, onBeforeMount, ref, watch } from "vue";
 
 interface Message {
   message: string,
   userId : string,
   time: Date,
 }
+interface PixelInformation {
+  color: string,
+  userId: string
+}
 
-export default defineComponent({
-  name: 'App',
-  components: {},
-  data() {
-    return {
-      connected: false,
-      socketId: '',
+let socket: Socket;
 
-      message: '',
-      messages: [] as Message[],
+const connected = ref<Boolean>(false)
+const socketId = ref('')
 
-      nextFieldPossible: null,
+const message = ref('')
+const messages = ref<Message[]>([])
 
-      selectedColor: 'red',
-      colorMap: {  },
-      timerCount: 0,
-    }
-  },
-  created() {
-    socket = io('http://localhost:3000');
+const nextFieldPossible = ref<Date>(new Date())
 
-    socket.on("connect", () => {
-      this.socketId = socket.id;
-      this.connected = true;
-    });
-  },
-  mounted() {
-    socket.on('newMessage', (message, userId, dateTime) => {
-      this.messages.unshift({ message, userId, time: new Date(dateTime)})
-    })
+const selectedColor = ref('red')
+const timerCount = ref<Number>(0)
+const colorMap = ref<Map<string, PixelInformation>>(new Map())
 
-    socket.on('setField', (x, y, color, userId) => {
-      this.colorMap[`${x}.${y}`] = {color, userId}
-    })
+onBeforeMount(() => {
+  socket = io('http://localhost:3000');
 
-    socket.on('nextFieldChangePossible', (datetime) => {
-      this.nextFieldPossible = new Date(datetime)
-      this.timerCount = Number((this.nextFieldPossible.getTime() - new Date().getTime()) / 1000).toFixed(1);
-    })
-  },
-  methods: {
-    sendMessage() {
-      if (this.message === undefined || this.message.length === 0) {
-        return  
-      }
-
-      socket.emit("newMessage", this.message)
-      this.message = ''
-    },
-    setField(row: number, column: number) {
-      if (this.nextFieldPossible !== null && (this.nextFieldPossible.getTime() - new Date().getTime()) > 0) {
-        return
-      }
-
-      socket.emit('changeField', row, column, this.selectedColor)
-    },
-    changeColor(color: string) {
-      this.selectedColor = color
-    },
-  },
-  watch: {
-    timerCount: {
-      handler(value) {
-        if (value > 0) {
-          setTimeout(() => {
-            const number = Number((this.nextFieldPossible.getTime() - new Date().getTime()) / 1000).toFixed(1);
-            this.timerCount = number <= 0 ? 0 : number;
-          }, 100);
-        }
-      },
-      immediate: true
-    }
-  }
+  socket.on("connect", () => {
+    socketId.value = socket.id;
+    connected.value = true;
+  });
 })
+
+onMounted(() => {
+  socket.on('newMessage', (message, userId, dateTime) => {
+    messages.value.unshift({ message, userId, time: new Date(dateTime)})
+  })
+
+  socket.on('setField', (x, y, color, userId) => {
+    colorMap.value.set(`${x}.${y}`, {color, userId})
+  })
+
+  socket.on('nextFieldChangePossible', (datetime) => {
+    nextFieldPossible.value = new Date(datetime)
+    timerCount.value = (nextFieldPossible.value.getTime() - new Date().getTime()) / 1000
+  })
+})
+
+
+function sendMessage() {
+  if (message.value === undefined || message.value.length === 0) {
+    return  
+  }
+
+  socket.emit("newMessage", message.value)
+  message.value = ''
+}
+
+function setField(row: number, column: number) {
+  if (nextFieldPossible.value !== null && (nextFieldPossible.value.getTime() - new Date().getTime()) > 0) {
+    return
+  }
+
+  socket.emit('changeField', row, column, selectedColor.value)
+}
+
+function changeColor(color: string) {
+  selectedColor.value = color
+}
+
+watch(timerCount, (value) => {
+  if (value > 0) {
+    setTimeout(() => {
+      const number = (nextFieldPossible.value.getTime() - new Date().getTime()) / 1000
+      timerCount.value = number <= 0 ? 0 : number
+    }, 100);
+  }
+}, {immediate: true})
 </script>
 
 <style>
