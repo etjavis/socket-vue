@@ -29,14 +29,13 @@
     <div>
       <h3>Playground</h3>
       Next in {{ timerCount.toFixed(1) }} sec
-      <div style="width: 400px; height: 400px; border: 1px solid red; margin: 0 auto;">
+      <div id="playground">
         <template v-for="row in 20">
           <template v-for="column in 20">
             <div @click="setField(row, column)"
               class="pixel-box"
               :style="{backgroundColor: colorMap.get(`${row}.${column}`)?.color}"
-              :title="`${ row }:${ column } ${ colorMap.get(`${row}.${column}`)?.userId ?? '' }`">
-              
+              :title="`${ row }:${ column } - ${ colorMap.get(`${row}.${column}`)?.userId ?? '' }`">
             </div>
           </template>
         </template>
@@ -146,6 +145,12 @@ watch(timerCount, (value) => {
   text-align: center;
   color: #2c3e50;
   margin-top: 60px;
+}
+#playground {
+  width: 400px;
+  height: 400px;
+  border: 1px solid black;
+  margin: 0 auto;
 }
 .pixel-box {
   height: 20px;
